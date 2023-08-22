@@ -1,0 +1,36 @@
+docker build -t nas2020/canon-ingestion:1.0.0 .
+
+docker run -p 3000:3000 \
+  --env PORT=3000 \
+  --env MONGODB_URI=mongodb://host.docker.internal:27017/canon \
+  --env BOOTNODE_WS_URL=ws://35.182.139.254:8555 \
+  --env NODE2_WS_URL=ws://3.98.144.85:8556 \
+  --env BOOTNODE_URL=http://35.182.139.254:8545 \
+  --env NODE2_URL=http://3.98.144.85:8546 \
+  nas2020/canon-ingestion:1.0.0
+
+docker build -t ghcr.io/nas2020/canon-ingestion:v0.0.4 .
+
+docker push ghcr.io/nas2020/canon-ingestion:v0.0.4
+
+docker pull ghcr.io/nas2020/canon-ingestion:v0.0.4
+
+
+
+docker run -d \
+  --env PORT=3000 \
+  --env MONGODB_URI=mongodb://host.docker.internal:27017/canon \
+  --env BOOTNODE_WS_URL=ws://35.182.139.254:8555 \
+  --env NODE2_WS_URL=ws://3.98.144.85:8556 \
+  --env BOOTNODE_URL=http://35.182.139.254:8545 \
+  --env NODE2_URL=http://3.98.144.85:8546 \
+ ghcr.io/nas2020/canon-ingestion:v0.0.4
+
+ docker run \
+  --env PORT=3000 \
+  --env MONGODB_URI=mongodb://host.docker.internal:27017/canon \
+  --env BOOTNODE_WS_URL=ws://35.182.139.254:8555 \
+  --env NODE2_WS_URL=ws://3.98.144.85:8556 \
+  --env BOOTNODE_URL=http://35.182.139.254:8545 \
+  --env NODE2_URL=http://3.98.144.85:8546 \
+ ghcr.io/nas2020/canon-ingestion:v0.0.4
