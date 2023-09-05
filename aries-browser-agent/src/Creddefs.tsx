@@ -1,8 +1,15 @@
 import { useAgent } from "@aries-framework/react-hooks";
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useCallback, useEffect, useState } from "react";
-
 import { Link } from "react-router-dom";
+import { InjectedConnector } from 'wagmi/connectors/injected'
+import { Logger } from "tslog"
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { usePrepareContractWrite, useContractWrite, useWaitForTransaction } from 'wagmi'
+import {useLiveQuery} from "dexie-react-hooks";
+
+import {credefsTable} from "./database/database.config";
+import {ICredDef} from "./database/types";
 
 interface CreateCredDefProps {
   open: boolean;
@@ -10,7 +17,97 @@ interface CreateCredDefProps {
 }
 function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
   const agent = useAgent();
+  const { address, isConnected } = useAccount()
+  const { connect } = useConnect({
+    connector: new InjectedConnector(),
+  })
+  const [hash, setHash] = useState("")  
   const [credDefName, setCredDefName] = useState("");
+
+  const contractABI = [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_cred_def_owner",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_trust_registry",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_revocation_registry",
+          "type": "address"
+        },
+        {
+          "internalType": "uint8",
+          "name": "_signature",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bytes20",
+          "name": "_schema_id",
+          "type": "bytes20"
+        },
+        {
+          "internalType": "string",
+          "name": "_tag",
+          "type": "string"
+        }
+      ],
+      "name": "registerCredDef",
+      "outputs": [
+        {
+          "internalType": "bytes20",
+          "name": "",
+          "type": "bytes20"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ];
+
+  useEffect(() => { connect(); }, []);
+
+  const { config, error } = usePrepareContractWrite({
+    address: '0xfb26376e2EC13cE5804e580dA1488184a52a3F45',
+    abi: contractABI,
+    functionName: 'registerCredDef',
+    args: [
+      '0xc89Fb7a0d974a7381d2bAf5e9613E806130C394B', 
+      '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE', 
+      '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE', 
+      2, 
+      '0xd6b4ded1d78badabfda82f2be0e8b7b0691762c6',
+      credDefName
+    ]
+  })
+
+  const { data, write } = useContractWrite(config);
+  const { isLoading, isSuccess } = useWaitForTransaction({ 
+    hash: data?.hash,
+    onSuccess(returnval) {
+      console.log('CredDefId=', returnval)
+      const creddef: ICredDef = {
+        creddefid: 'asdf', //returnval?.logs[0]?.topics[1].slice(0, 42),
+        schemaid: '0xd6b4ded1d78badabfda82f2be0e8b7b0691762c6',
+        tag: credDefName,
+        txid: returnval?.transactionHash
+      }
+      try {
+          // Add the new credential definition
+          console.log('CredDef=', creddef)
+          credefsTable.add(creddef);
+      } catch (error) {
+          console.error(`Failed to add ${credDefName}: ${error}`);
+      }      
+    }
+  });  
+
   return (
     <Transition.Root show={open} as={Fragment}>
       <Dialog as="div" className="relative z-10" onClose={setOpen}>
@@ -72,16 +169,7 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
                   <button
                     type="button"
                     className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                    onClick={async () => {
-                      //const inv =
-                      //  await agent?.agent!.oob.receiveInvitationFromUrl(
-                      //</div>    invitationUrl
-                      //  );
-                      //await agent.agent?.connections.returnWhenIsConnected(
-                      //</Dialog.Panel>  inv!.connectionRecord!.id!
-                      //);
-                      setOpen(false);
-                    }}
+                    onClick={async () => { write?.(); setOpen(false);}}
                   >
                     Register Credential Definition
                   </button>
@@ -98,7 +186,9 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
 
 export default function Creddefs() {
   const [showCredDef, setShowCredDef] = useState(false);
-  
+  const creddefs = useLiveQuery(
+    () => credefsTable.toArray()
+  );  
   return (
     <>
       <CreateCredDef open={showCredDef} setOpen={setShowCredDef} />
@@ -157,19 +247,12 @@ export default function Creddefs() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  { /*credentials.records?.map((cred) => (
-                    <tr key={cred.id}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
-                        <Link to={`/dashboard/credentials/${cred.id}`}>{cred.id}</Link>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {cred.state}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {cred.createdAt.toISOString()}
-                      </td>                      
-                    </tr>
-                  )) */}
+                    {creddefs?.map(creddef => <tr>
+                      <td>{creddef.creddefid}</td>
+                      <td>{creddef.schemaid}</td>
+                      <td>{creddef.tag}</td>
+                      <td>{creddef.txid}</td>
+                    </tr>)}
                 </tbody>
               </table>
             </div>

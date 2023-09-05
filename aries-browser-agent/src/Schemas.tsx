@@ -1,16 +1,96 @@
-import { useAgent } from "@aries-framework/react-hooks";
+import { useAries } from "./AriesProvider";
 import { Dialog, Transition } from "@headlessui/react";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { InjectedConnector } from 'wagmi/connectors/injected'
+import { Logger } from "tslog"
+import { usePrepareContractWrite, useContractWrite, useWaitForTransaction } from 'wagmi'
 
-import { Link } from "react-router-dom";
+import {useLiveQuery} from "dexie-react-hooks";
+import {schemaTable} from "./database/database.config";
+import {ISchema} from "./database/types";
 
+const log = new Logger({ name: "Schemas" })
 interface CreateSchemaProps {
   open: boolean;
   setOpen: (open: boolean) => void;
 }
 function CreateSchema({ open, setOpen }: CreateSchemaProps) {
-  const agent = useAgent();
+  const { agent } = useAries();
+  const { address, isConnected } = useAccount()
+  const { connect } = useConnect({
+    connector: new InjectedConnector(),
+  })
   const [schemaName, setSchemaName] = useState("");
+  const [hash, setHash] = useState("")
+  const contractABI = [{
+    name: 'registerSchema',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+        {
+            "internalType": "address",
+            "name": "_schema_owner",
+            "type": "address"
+        },
+        {
+            "internalType": "address",
+            "name": "_trust_registry",
+            "type": "address"
+        },
+        {
+            "internalType": "uint8",
+            "name": "_version",
+            "type": "uint8"
+        },
+        {
+            "internalType": "string",
+            "name": "_name",
+            "type": "string"
+        },
+        {
+            "internalType": "string[]",
+            "name": "_attributes",
+            "type": "string[]"
+        }
+    ],
+    outputs: [{
+        "internalType": "bytes20",
+        "name": "_schema_id",
+        "type": "bytes20"
+    }],
+  }];
+
+  useEffect(() => { connect(); }, []);
+
+  const { config, error } = usePrepareContractWrite({
+    address: '0xfb26376e2EC13cE5804e580dA1488184a52a3F45',
+    abi: contractABI,
+    functionName: 'registerSchema',
+    args: ['0xc89Fb7a0d974a7381d2bAf5e9613E806130C394B', '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE', 2, schemaName, ['Name', 'City']]
+  })
+
+  const { data, write } = useContractWrite(config);
+  const { isLoading, isSuccess } = useWaitForTransaction({ 
+    hash: data?.hash,
+    onSuccess(returnval) {
+      console.log('returnval=', returnval)
+      console.log('SchemaId=', returnval?.logs[0]?.topics[1])
+      const schema: ISchema = {
+        schemaid: returnval?.logs[0]?.topics[1].slice(0, 42),
+        name: schemaName,
+        txid: returnval?.transactionHash
+      }
+      try {
+          // Add the new schema
+          schemaTable.add(schema);
+      } catch (error) {
+          console.error(`Failed to add ${schemaName}: ${error}`);
+      }      
+    }
+  });
+
+
   return (
     <Transition.Root show={open} as={Fragment}>
       <Dialog as="div" className="relative z-10" onClose={setOpen}>
@@ -72,16 +152,7 @@ function CreateSchema({ open, setOpen }: CreateSchemaProps) {
                   <button
                     type="button"
                     className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                    onClick={async () => {
-                      //const inv =
-                      //  await agent?.agent!.oob.receiveInvitationFromUrl(
-                      //</div>    invitationUrl
-                      //  );
-                      //await agent.agent?.connections.returnWhenIsConnected(
-                      //</Dialog.Panel>  inv!.connectionRecord!.id!
-                      //);
-                      setOpen(false);
-                    }}
+                    onClick={async () => { write?.(); setOpen(false);}}
                   >
                     Register invitation
                   </button>
@@ -95,8 +166,12 @@ function CreateSchema({ open, setOpen }: CreateSchemaProps) {
   );
 }
 
+
 export default function Schemas() {
   const [showSchema, setShowSchema] = useState(false);
+  const schemas = useLiveQuery(
+    () => schemaTable.toArray()
+  );
   return (
     <>
       <CreateSchema open={showSchema} setOpen={setShowSchema} />
@@ -132,7 +207,7 @@ export default function Schemas() {
                       scope="col"
                       className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-0"
                     >
-                      Id
+                      Schema Id
                     </th>
                     <th
                       scope="col"
@@ -144,26 +219,16 @@ export default function Schemas() {
                       scope="col"
                       className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
                     >
-                      Created At
+                      Transaction ID
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-{/*
-                  {credentials.records?.map((cred) => (
-                    <tr key={cred.id}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-0">
-                        <Link to={`/dashboard/credentials/${cred.id}`}>{cred.id}</Link>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {cred.state}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {cred.createdAt.toISOString()}
-                      </td>                      
-                    </tr>
-                  ))}
-                  */}
+                    {schemas?.map(schema => <tr>
+                      <td>{schema.schemaid}</td>
+                      <td>{schema.name}</td>
+                      <td>{schema.txid}</td>
+                    </tr>)}
                 </tbody>
               </table>
             </div>
