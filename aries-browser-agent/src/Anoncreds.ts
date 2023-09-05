@@ -7,6 +7,8 @@ import type {
 import type { AgentContext } from '@aries-framework/core';
 import axios, { AxiosError } from 'axios';
 import { Logger } from "tslog"
+import { usePrepareContractWrite, useContractWrite } from 'wagmi'
+
 
 const log = new Logger({ name: "RestAnoncredsRegistry" })
 const endpoint = "http://localhost:3554";
@@ -14,6 +16,7 @@ const endpoint = "http://localhost:3554";
  * Remote RESTful implementation of the {@link AnonCredsRegistry} interface.
  */
 export class RESTfulAnonCredsRegistry implements AnonCredsRegistry {
+
     public readonly supportedIdentifier = /.+/
 
     public constructor({ }: {} = {}) { }
@@ -60,10 +63,64 @@ export class RESTfulAnonCredsRegistry implements AnonCredsRegistry {
         agentContext: AgentContext,
         options: RegisterSchemaOptions
     ): Promise<RegisterSchemaReturn> {
+        log.info("Anoncreds - registerSchema");
         try {
+            let schemaId = "";
+            const { config } = usePrepareContractWrite({
+                address: '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE',
+                abi: [
+                  {
+                    name: 'registerSchema',
+                    type: 'function',
+                    stateMutability: 'nonpayable',
+                    inputs: [
+                        {
+                            "internalType": "address",
+                            "name": "_schema_owner",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "address",
+                            "name": "_trust_registry",
+                            "type": "address"
+                        },
+                        {
+                            "internalType": "uint8",
+                            "name": "_version",
+                            "type": "uint8"
+                        },
+                        {
+                            "internalType": "string",
+                            "name": "_name",
+                            "type": "string"
+                        },
+                        {
+                            "internalType": "string[]",
+                            "name": "_attributes",
+                            "type": "string[]"
+                        }
+                    ],
+                    outputs: [{
+                        "internalType": "bytes20",
+                        "name": "schema_id",
+                        "type": "bytes20"
+                    }],
+                  },
+                ],
+                functionName: 'registerSchema',
+                args: [options.schema.issuerId, 0x0, 2, options.schema.name, options.schema.attrNames]
+                
+            })
+    
+            log.info("Pre contract call config=", config);
+            const { write } = useContractWrite(config);
+            log.info("Write=", write);
+
+            /*
             const response = await axios.post(`${endpoint}/schemas`, options.schema);
             log.info('Registered schema', { schema: response.data });
             const schemaId = response.data.id;
+            */
             return {
                 registrationMetadata: {},
                 schemaMetadata: {},

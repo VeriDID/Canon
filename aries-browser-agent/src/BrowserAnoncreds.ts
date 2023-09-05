@@ -32,6 +32,8 @@ import {
     anoncreds_process_credential,
     anoncreds_schema_from_json,
 } from './anoncreds_wasm/anoncreds';
+import { usePrepareContractWrite, useContractWrite } from 'wagmi'
+import { InjectedConnector } from 'wagmi/connectors/injected'
 
 
 export class BrowserAnoncreds implements Anoncreds {
@@ -87,9 +89,36 @@ export class BrowserAnoncreds implements Anoncreds {
         attributeNames: string[]
         issuerId: string
     }): ObjectHandle {
-        throw new Error('Method not implemented.')
+
+
+        let schemaId = "";
+        const { config } = usePrepareContractWrite({
+            address: '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE',
+            abi: [
+              {
+                name: 'registerSchema',
+                type: 'function',
+                stateMutability: 'nonpayable',
+                inputs: [options.issuerId, 0x0, 2, options.name, options.attributeNames  ],
+                outputs: [schemaId],
+              },
+            ],
+            functionName: 'registerSchema',
+          })
+
+          if(useContractWrite(config)) {
+            
+          } 
+          else {
+            throw new Error('Method not implemented.')
+
+          }
+        
+        // throw new Error('Method not implemented.')
         // const handle = handleError(anoncredsReactNative.createSchema(serializeArguments(options)))
-        // return new ObjectHandle(handle)
+        // Write to Smart Contract
+
+        return new ObjectHandle(5);
     }
 
     public createCredentialDefinition(options: {
