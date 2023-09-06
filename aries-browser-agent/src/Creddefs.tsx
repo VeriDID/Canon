@@ -7,6 +7,7 @@ import { Logger } from "tslog"
 import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { usePrepareContractWrite, useContractWrite, useWaitForTransaction } from 'wagmi'
 import {useLiveQuery} from "dexie-react-hooks";
+import axios from "axios"
 
 import {credefsTable} from "./database/database.config";
 import {ICredDef} from "./database/types";
@@ -23,6 +24,7 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
   })
   const [hash, setHash] = useState("")  
   const [credDefName, setCredDefName] = useState("");
+  const [credDefData, setCredDefData] = useState("asdf");
 
   const contractABI = [
     {
@@ -56,6 +58,11 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
           "internalType": "string",
           "name": "_tag",
           "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_creddef_data",
+          "type": "string"
         }
       ],
       "name": "registerCredDef",
@@ -74,7 +81,7 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
   useEffect(() => { connect(); }, []);
 
   const { config, error } = usePrepareContractWrite({
-    address: '0xfb26376e2EC13cE5804e580dA1488184a52a3F45',
+    address: '0x8982785987f346E5b528CD26A72a03A7D07aFc71',
     abi: contractABI,
     functionName: 'registerCredDef',
     args: [
@@ -83,9 +90,26 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
       '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE', 
       2, 
       '0xd6b4ded1d78badabfda82f2be0e8b7b0691762c6',
-      credDefName
+      credDefName,
+      credDefData
     ]
   })
+
+  const callCredDef = async () => {
+    console.log("Call to create Cred Def data");
+    const response = await axios.post('http://credserver.veridid.services:3000/anoncreds/create', {
+      "issuerId": "did:canon:veridid:account:c89Fb7a0d974a7381d2bAf5e9613E806130C394B",
+      "tag": "CredDef1",
+      "schemaId": "did:canon:veridid:schema:425ce3e23548547ec6d904567d8c87460d5b95e8",
+      "schemaName": "Person",
+      "schemaVersion": "1.0",
+      "attrNames": ['name', 'age']
+    });
+    console.log("Cred Def Data: ",response.data);
+    setCredDefData("This is a test"); // JSON.stringify(response.data?.credentialDefinition));
+    write?.();
+
+  };
 
   const { data, write } = useContractWrite(config);
   const { isLoading, isSuccess } = useWaitForTransaction({ 
@@ -169,7 +193,7 @@ function CreateCredDef({ open, setOpen }: CreateCredDefProps) {
                   <button
                     type="button"
                     className="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                    onClick={async () => { write?.(); setOpen(false);}}
+                    onClick={async () => { callCredDef();  setOpen(false);}}
                   >
                     Register Credential Definition
                   </button>

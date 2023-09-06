@@ -64,7 +64,7 @@ function CreateSchema({ open, setOpen }: CreateSchemaProps) {
   useEffect(() => { connect(); }, []);
 
   const { config, error } = usePrepareContractWrite({
-    address: '0xfb26376e2EC13cE5804e580dA1488184a52a3F45',
+    address: '0x8982785987f346E5b528CD26A72a03A7D07aFc71',
     abi: contractABI,
     functionName: 'registerSchema',
     args: ['0xc89Fb7a0d974a7381d2bAf5e9613E806130C394B', '0xBd2c938B9F6Bfc1A66368D08CB44dC3EB2aE27bE', 2, schemaName, ['Name', 'City']]
